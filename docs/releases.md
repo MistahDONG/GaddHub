@@ -222,6 +222,28 @@ med `&` och omedelbar kontroll av `$LASTEXITCODE` kan annars rapportera fel
 innan processen är klar, även om exporten är giltig. Giltig export ska ge 0
 och saknad export 1; Linux behåller direktstart och `$LASTEXITCODE`.
 
+### Manuellt testbygge trots testfel
+
+Standardläget stoppar bygget vid testfel. För ett uttryckligt testbygge:
+
+1. Pusha workflowändringen till standardbranchen.
+2. Öppna **Actions → Agent tests and packages → Run workflow** och välj branch.
+3. Aktivera **Build test artifacts despite failing tests (never create a release)**
+   (`allow_test_failures`) och starta körningen.
+4. Hämta `GaddHub-windows-x64-test-build` respektive
+   `GaddHub-linux-x64-test-build` under **Artifacts**.
+
+Alla tester körs fortfarande, inklusive smoke- och installertester, men testfel
+stoppar inte paketering/uppladdning i detta manuella läge. Lint, typkontroll,
+kompilering och arkivering måste fortfarande lyckas. En varning och en tabell
+med teststegens faktiska `outcome` visas i körningssammanfattningen; ett grönt
+jobb i detta läge betyder inte att alla tester passerat.
+
+Valet är avstängt som standard och gäller inte push-/PR-/taggkörningar.
+Manuella körningar kan aldrig skapa en release, inte heller när en tagg väljs.
+Officiella releaseutkast kräver en `agent-v*`-taggpush och godkända tester
+på båda plattformarna. Publicera inte dessa testartefakter som en release.
+
 ### Pyright hittar inte installerade paket
 
 Om Pyright rapporterar saknade importer trots att installationen av

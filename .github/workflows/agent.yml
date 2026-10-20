@@ -6,6 +6,12 @@ on:
     tags: ["agent-v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      allow_test_failures:
+        description: "Build test artifacts despite failing tests (never create a release)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -55,12 +61,16 @@ jobs:
           $python = python -c "import sys; print(sys.executable)"
           & $python -m pyright --pythonpath $python
       - name: Test Windows including UI
+        id: windows_tests
         if: runner.os == 'Windows'
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_test_failures }}
         env:
           GADDHUB_UI_TEST: "1"
         run: python -m pytest agent/tests addon/tests -q
       - name: Test Linux including UI under Xvfb
+        id: linux_tests
         if: runner.os == 'Linux'
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_test_failures }}
         shell: bash
         env:
           GADDHUB_UI_TEST: "1"
@@ -69,6 +79,8 @@ jobs:
       - name: Build native package
         run: python -m PyInstaller --noconfirm --clean agent/GaddHub.spec
       - name: Smoke test packaged executable without display
+        id: smoke_tests
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_test_failures }}
         run: |
           $exe = if ($IsWindows) { ".\dist\GaddHub\GaddHub.exe" } else { "./dist/GaddHub/GaddHub" }
           Remove-Item Env:DISPLAY -ErrorAction SilentlyContinue
@@ -107,7 +119,9 @@ jobs:
           }
           & .\agent\installer\build.ps1 -Python (Get-Command python).Source -Compiler $compiler
       - name: Test Windows install, upgrade and uninstall
+        id: installer_tests
         if: runner.os == 'Windows'
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_test_failures }}
         run: |
           $installers = @(Get-ChildItem -LiteralPath dist -Filter "GaddHub-Setup-*-windows-x64.exe")
           if ($installers.Count -ne 1) { throw "Expected exactly one installer" }
@@ -116,9 +130,29 @@ jobs:
       - name: Archive Linux package preserving executable permissions
         if: runner.os == 'Linux'
         run: tar -czf dist/GaddHub-linux-x64.tar.gz -C dist GaddHub
+      - name: Report manual test build results
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.allow_test_failures }}
+        env:
+          WINDOWS_TESTS: ${{ steps.windows_tests.outcome }}
+          LINUX_TESTS: ${{ steps.linux_tests.outcome }}
+          SMOKE_TESTS: ${{ steps.smoke_tests.outcome }}
+          INSTALLER_TESTS: ${{ steps.installer_tests.outcome }}
+        run: |
+          Write-Output "::warning::Manual test build: test failures do not block artifacts. Release publishing is disabled."
+          @(
+            "## Manual test build - ${{ matrix.platform }}"
+            "These artifacts are for testing only, not for release."
+            ""
+            "| Test step | Result |"
+            "| --- | --- |"
+            "| Windows tests | $env:WINDOWS_TESTS |"
+            "| Linux tests | $env:LINUX_TESTS |"
+            "| Packaged smoke tests | $env:SMOKE_TESTS |"
+            "| Windows installer tests | $env:INSTALLER_TESTS |"
+          ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - uses: actions/upload-artifact@v4
         with:
-          name: GaddHub-${{ matrix.platform }}
+          name: GaddHub-${{ matrix.platform }}${{ github.event_name == 'workflow_dispatch' && inputs.allow_test_failures && '-test-build' || '' }}
           path: |
             dist/GaddHub-*.zip
             dist/GaddHub-*.tar.gz
@@ -126,7 +160,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/agent-v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/agent-v')
     needs: build
     runs-on: ubuntu-24.04
     permissions:

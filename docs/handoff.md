@@ -51,6 +51,26 @@ Copilots automatiska startpunkt är
 
 ## Vad som finns och vad som är verifierat
 
+### Senaste fasen: manuella testbyggen
+
+- Körningen `39500713667` på commit `132a79e` stoppades före bygget av ett
+  Tcl/Tk-initieringsfel i `test_log_is_visible_at_minimum_window_size`:
+  159 passed, 5 skipped, 1 error. Alla 13 GUI-tester passerade lokalt vid
+  efterföljande körning. Runnerfelets rotorsak är inte verifierad eller rättad.
+- Användaren valde uttryckligen manuella testbyggen trots testfel, med fortsatt
+  spärr för releaser. `workflow_dispatch` har nu booleanvalet
+  `allow_test_failures`, avstängt som standard. Endast när valet aktiveras vid
+  manuell start får pytest-, smoke- och installertester fallera utan att stoppa
+  artefakter. Lint, typer och själva bygg-/arkivstegen får inte kringgås.
+- Testartefakternas namn slutar på `-test-build`. Faktiska testutfall visas
+  i en sammanfattning och körningen varnar att detta inte är releasematerial.
+  Releasejobbet kräver nu uttryckligen taggpush, aldrig manuell körning.
+  Vanliga push-/PR-/taggbyggen behåller testspärrarna.
+- Lokalt verifierat med actionlint 1.7.7, 24 kombinationer av workflowens
+  faktiska villkor (event, branch/tagg, input och testfel), samt exekvering av
+  sammanfattningssteget med misslyckade testutfall. Ny manuell körning i
+  GitHub Actions återstår efter commit/push.
+
 ### Senaste fasen: Pyright i GitHub Actions
 
 - Körningen för rättningen, `39500165500` på commit `cc6ae0c`, kom vidare
