@@ -1,0 +1,134 @@
+name: Agent tests and packages
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["agent-v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        if: runner.os == 'Windows'
+        with:
+          python-version: "3.12"
+          architecture: x64
+      - name: Install Linux desktop and build dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-tk python3-gi gir1.2-gtk-3.0 \
+            gir1.2-ayatanaappindicator3-0.1 libgirepository-1.0-1 xvfb xauth \
+            dbus-x11 desktop-file-utils
+          /usr/bin/python3 -m venv --system-site-packages .venv
+      - name: Create Windows environment
+        if: runner.os == 'Windows'
+        run: python -m venv .venv
+      - name: Select build environment
+        run: |
+          $bin = if ($IsWindows) { "Scripts" } else { "bin" }
+          Join-Path $env:GITHUB_WORKSPACE ".venv" $bin | Out-File -FilePath $env:GITHUB_PATH -Append
+      - run: python -m pip install -e ".[dev,build]"
+      - run: python -m ruff check agent schemas addon
+      - run: python -m ruff format --check agent schemas addon
+      - run: python -m pyright --pythonpath python
+      - name: Test Windows including UI
+        if: runner.os == 'Windows'
+        env:
+          GADDHUB_UI_TEST: "1"
+        run: python -m pytest agent/tests addon/tests -q
+      - name: Test Linux including UI under Xvfb
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          GADDHUB_UI_TEST: "1"
+          GDK_BACKEND: x11
+        run: dbus-run-session -- xvfb-run -a python -m pytest agent/tests addon/tests -q
+      - name: Build native package
+        run: python -m PyInstaller --noconfirm --clean agent/GaddHub.spec
+      - name: Smoke test packaged executable without display
+        run: |
+          $exe = if ($IsWindows) { ".\dist\GaddHub\GaddHub.exe" } else { "./dist/GaddHub/GaddHub" }
+          Remove-Item Env:DISPLAY -ErrorAction SilentlyContinue
+          Remove-Item Env:WAYLAND_DISPLAY -ErrorAction SilentlyContinue
+          & $exe --check-export agent/tests/fixtures/synthetic-savedvariables.lua
+          if ($LASTEXITCODE -ne 0) { throw "Packaged export validation failed" }
+          & $exe --check-export missing-export.lua
+          if ($LASTEXITCODE -ne 1) { throw "Packaged invalid export was not rejected" }
+      - name: Archive Windows package
+        if: runner.os == 'Windows'
+        run: Compress-Archive -LiteralPath dist/GaddHub -DestinationPath dist/GaddHub-windows-x64.zip
+      - name: Archive test addon
+        if: runner.os == 'Windows'
+        run: |
+          $match = Select-String -LiteralPath addon/GaddHub/GaddHub.toc -Pattern '^## Version: ([0-9.]+)$'
+          $version = $match.Matches[0].Groups[1].Value
+          if (-not $version) { throw "Missing addon version" }
+          Compress-Archive -LiteralPath addon/GaddHub -DestinationPath "dist/GaddHub-addon-$version.zip"
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path -LiteralPath $compiler)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          }
+          & .\agent\installer\build.ps1 -Python (Get-Command python).Source -Compiler $compiler
+      - name: Test Windows install, upgrade and uninstall
+        if: runner.os == 'Windows'
+        run: |
+          $installers = @(Get-ChildItem -LiteralPath dist -Filter "GaddHub-Setup-*-windows-x64.exe")
+          if ($installers.Count -ne 1) { throw "Expected exactly one installer" }
+          $env:GADDHUB_INSTALLER = $installers[0].FullName
+          python -m pytest agent/tests/test_installer.py -q
+      - name: Archive Linux package preserving executable permissions
+        if: runner.os == 'Linux'
+        run: tar -czf dist/GaddHub-linux-x64.tar.gz -C dist GaddHub
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GaddHub-${{ matrix.platform }}
+          path: |
+            dist/GaddHub-*.zip
+            dist/GaddHub-*.tar.gz
+            dist/GaddHub-Setup-*.exe
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/agent-v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: GaddHub-*
+          merge-multiple: true
+          path: packages
+      - name: Create draft release with native packages and Windows installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          (cd packages && sha256sum GaddHub-* > SHA256SUMS.txt)
+          gh release create "$GITHUB_REF_NAME" packages/* \
+            --verify-tag --draft --generate-notes --title "GaddHub $GITHUB_REF_NAME"

@@ -1,0 +1,16 @@
+## Interface: 16001
+## Title: GaddHub
+## Notes: Character snapshots for the GaddHub desktop agent. Test version.
+## Author: GaddHub
+## Version: 0.1.0
+## SavedVariables: GuildSyncDB
+
+Core.lua
+Modules\Equipment.lua
+Modules\Talents.lua
+Modules\Professions.lua
+Modules\Containers.lua
+Modules\Inventory.lua
+Modules\Bank.lua
+Modules\Recipes.lua
+Events.lua

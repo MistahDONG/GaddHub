@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gaddhub-agent"
+version = "0.1.2"
+description = "Windows and Linux agent for validated WoW SavedVariables snapshots"
+requires-python = ">=3.12"
+dependencies = [
+    "jsonschema[format]>=4.23,<5",
+    "Pillow>=11,<13",
+    "pystray>=0.19.5,<1",
+    "requests>=2.32.4,<3",
+    "watchdog>=6,<7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "pyright>=1.1.400,<2", "trustme>=1.2,<2", "lupa>=2.6,<3"]
+build = ["pyinstaller>=6.12,<7"]
+
+[project.gui-scripts]
+gaddhub-agent = "gaddhub_agent.app:main"
+
+[tool.setuptools]
+packages = ["gaddhub_agent", "schemas"]
+package-dir = {gaddhub_agent = "agent/src/gaddhub_agent", schemas = "schemas"}
+
+[tool.setuptools.package-data]
+schemas = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["agent/tests", "addon/tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pyright]
+include = ["agent/src", "agent/tests", "addon/tests"]
+extraPaths = ["agent/src"]
+pythonVersion = "3.12"
+pythonPlatform = "All"
+typeCheckingMode = "standard"
