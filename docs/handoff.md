@@ -53,6 +53,15 @@ Copilots automatiska startpunkt är
 
 ### Senaste fasen: Pyright i GitHub Actions
 
+- Körningen för rättningen, `39500165500` på commit `cc6ae0c`, kom vidare
+  till Windowsbyggets smoke-test. Det kastade fel före utskriften
+  `Valid export: 1 snapshot(s). No upload performed.` eftersom GUI-exe:n
+  startades direkt och `$LASTEXITCODE` kontrollerades utan att invänta processen.
+  Windowssteget använder nu `Start-Process -Wait -PassThru` och processens
+  `ExitCode` för både giltig och saknad fil. Linuxstarten är oförändrad.
+  Exakt rättat Windowssteg har körts lokalt mot det befintliga 0.1.2-paketet:
+  giltig export gav 0 och saknad fil 1, trots avsiktligt gammalt
+  `$LASTEXITCODE = 37`. Ny CI-körning återstår efter commit/push.
 - Användaren har pushat till `MistahDONG/GaddHub`; lokal `origin` pekar nu dit.
   Actions-körningen `39499040863` misslyckades, med 19 fel och 4 varningar
   i Windowsjobbets `python -m pyright --pythonpath python`.

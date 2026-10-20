@@ -216,6 +216,12 @@ systempaket och kör GUI-tester via D-Bus/Xvfb. Native Linux-tester ska inte var
 Windows-artifacten innehåller både portabel ZIP och setup-exe.
 Om Inno Setup saknas på Windows-runnern installeras det med Chocolatey.
 
+Smoke-testet använder `Start-Process -Wait -PassThru` på Windows och läser
+processens `ExitCode`, eftersom agenten är byggd som GUI-program. Direktstart
+med `&` och omedelbar kontroll av `$LASTEXITCODE` kan annars rapportera fel
+innan processen är klar, även om exporten är giltig. Giltig export ska ge 0
+och saknad export 1; Linux behåller direktstart och `$LASTEXITCODE`.
+
 ### Pyright hittar inte installerade paket
 
 Om Pyright rapporterar saknade importer trots att installationen av

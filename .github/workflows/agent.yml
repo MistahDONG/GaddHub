@@ -73,10 +73,20 @@ jobs:
           $exe = if ($IsWindows) { ".\dist\GaddHub\GaddHub.exe" } else { "./dist/GaddHub/GaddHub" }
           Remove-Item Env:DISPLAY -ErrorAction SilentlyContinue
           Remove-Item Env:WAYLAND_DISPLAY -ErrorAction SilentlyContinue
-          & $exe --check-export agent/tests/fixtures/synthetic-savedvariables.lua
-          if ($LASTEXITCODE -ne 0) { throw "Packaged export validation failed" }
-          & $exe --check-export missing-export.lua
-          if ($LASTEXITCODE -ne 1) { throw "Packaged invalid export was not rejected" }
+          if ($IsWindows) {
+            $exitCode = (Start-Process -FilePath $exe -ArgumentList "--check-export", "agent/tests/fixtures/synthetic-savedvariables.lua" -Wait -PassThru).ExitCode
+          } else {
+            & $exe --check-export agent/tests/fixtures/synthetic-savedvariables.lua
+            $exitCode = $LASTEXITCODE
+          }
+          if ($exitCode -ne 0) { throw "Packaged export validation failed (exit code: $exitCode)" }
+          if ($IsWindows) {
+            $exitCode = (Start-Process -FilePath $exe -ArgumentList "--check-export", "missing-export.lua" -Wait -PassThru).ExitCode
+          } else {
+            & $exe --check-export missing-export.lua
+            $exitCode = $LASTEXITCODE
+          }
+          if ($exitCode -ne 1) { throw "Packaged invalid export was not rejected (exit code: $exitCode)" }
       - name: Archive Windows package
         if: runner.os == 'Windows'
         run: Compress-Archive -LiteralPath dist/GaddHub -DestinationPath dist/GaddHub-windows-x64.zip
