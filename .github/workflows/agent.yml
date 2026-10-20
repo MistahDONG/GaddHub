@@ -50,7 +50,10 @@ jobs:
       - run: python -m pip install -e ".[dev,build]"
       - run: python -m ruff check agent schemas addon
       - run: python -m ruff format --check agent schemas addon
-      - run: python -m pyright --pythonpath python
+      - name: Type check with build environment
+        run: |
+          $python = python -c "import sys; print(sys.executable)"
+          & $python -m pyright --pythonpath $python
       - name: Test Windows including UI
         if: runner.os == 'Windows'
         env:

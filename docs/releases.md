@@ -216,6 +216,20 @@ systempaket och kör GUI-tester via D-Bus/Xvfb. Native Linux-tester ska inte var
 Windows-artifacten innehåller både portabel ZIP och setup-exe.
 Om Inno Setup saknas på Windows-runnern installeras det med Chocolatey.
 
+### Pyright hittar inte installerade paket
+
+Om Pyright rapporterar saknade importer trots att installationen av
+`.[dev,build]` lyckats, kontrollera vilken Pythoninterpreter typkontrollen använder.
+Workflowen hämtar den fullständiga sökvägen från `sys.executable` och skickar den
+till `--pythonpath`. Använd inte enbart `--pythonpath python`: lokalt gav det
+19 fel och 4 varningar, medan samma kontroll med miljöns fullständiga
+interpretersökväg gav 0 fel och 0 varningar.
+
+Commit och pusha workflowändringen för att testa den i en ny körning.
+**Re-run jobs** på den gamla körningen använder den gamla workflowversionen,
+inte en senare lokal rättning. Windows-/Linuxbyggena måste fortfarande passera
+i GitHub Actions innan en releasetagg skapas.
+
 ## 6. Tagga och skapa releaseutkast
 
 Skapa inte taggen förrän ändringarna är committade, pushade och verifierade.

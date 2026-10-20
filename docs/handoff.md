@@ -51,6 +51,21 @@ Copilots automatiska startpunkt är
 
 ## Vad som finns och vad som är verifierat
 
+### Senaste fasen: Pyright i GitHub Actions
+
+- Användaren har pushat till `MistahDONG/GaddHub`; lokal `origin` pekar nu dit.
+  Actions-körningen `39499040863` misslyckades, med 19 fel och 4 varningar
+  i Windowsjobbets `python -m pyright --pythonpath python`.
+- Samma kommando återskapade lokalt exakt 19 fel och 4 varningar. Med den
+  fullständiga interpretersökvägen från miljöns `sys.executable` gav Pyright
+  0 fel och 0 varningar utan ändrade beroenden eller undertryckta diagnostikregler.
+- Workflowen använder nu denna fullständiga sökväg för både Pyright-körning
+  och `--pythonpath`. Den rättade Windows-/Linuxkörningen i CI återstår efter
+  commit/push; ingen release eller lyckat Linuxbygge har verifierats här.
+- Användaren rapporterar också att addonet skapade en riktig SavedVariables-fil.
+  Filinnehåll, alla insamlingssektioner och agentens behandling av filen har
+  ännu inte granskats. Detta ersätter inte klientverifiering av varje adapter.
+
 ### Senaste fasen: testaddon 0.1.0
 
 - Användaren beställde addonet för speltest. GetBuildInfo-skärmbild visar
